@@ -23,8 +23,10 @@ ARG VROOM_RELEASE=master
 
 RUN echo "Cloning and installing vroom release/branch ${VROOM_RELEASE}..." && \
     git clone --branch $VROOM_RELEASE --single-branch --recurse-submodules https://github.com/VROOM-Project/vroom.git && \
-    cd vroom && \
-    make -C /vroom/src -j$(nproc)
+    grep -q "MAX_PRIORITY" /vroom/src/structures/typedefs.h && \
+    sed -i -E 's/(MAX_PRIORITY[[:space:]]*=[[:space:]]*)100/\110000/' /vroom/src/structures/typedefs.h && \
+    grep "MAX_PRIORITY" /vroom/src/structures/typedefs.h && \
+    cd vroom && make -C /vroom/src -j$(nproc)
 
 FROM node:20-bookworm-slim AS runstage
 
