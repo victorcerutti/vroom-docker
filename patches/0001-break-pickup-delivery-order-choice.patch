@@ -1,0 +1,52 @@
+diff --git a/src/structures/vroom/tw_route.cpp b/src/structures/vroom/tw_route.cpp
+index 0739e67..0a0a5a0 100644
+--- a/src/structures/vroom/tw_route.cpp
++++ b/src/structures/vroom/tw_route.cpp
+@@ -548,6 +548,47 @@ OrderChoice TWRoute::order_choice(const Input& input,
+ 
+   if (job_then_break_end + travel_after_break > next.latest) {
+     // Starting the break is possible but then next step is not.
++    //
++    // [superflacon patch] For a pickup, "next step" is the matching
++    // delivery (see tighter_next in is_valid_addition_for_tw), so
++    // the check above only rules out pickup -> break -> delivery. It
++    // says nothing about pickup -> delivery -> break, which may be
++    // the only valid ordering (e.g. delivery with an early TW and a
++    // lunch break later in the day). Returning break first here
++    // skips the dedicated pickup handling below and wrongly rejects
++    // the insertion. So for a pickup, check pickup -> delivery ->
++    // break before falling back to break first.
++    if (j.type == JOB_TYPE::PICKUP) {
++      const auto& matching_d = input.jobs[job_rank + 1];
++      assert(matching_d.type == JOB_TYPE::DELIVERY);
++
++      const Duration delivery_candidate =
++        earliest_job_end + v.duration(j.index(), matching_d.index());
++      if (const auto d_tw = std::ranges::find_if(matching_d.tws,
++                                                 [&](const auto& tw) {
++                                                   return delivery_candidate <=
++                                                          tw.end;
++                                                 });
++          d_tw != matching_d.tws.end()) {
++        const auto matching_d_action_time =
++          (matching_d.index() == j.index())
++            ? matching_d.services[v_type]
++            : matching_d.setups[v_type] + matching_d.services[v_type];
++
++        const Duration break_candidate =
++          std::max(delivery_candidate, d_tw->start) + matching_d_action_time;
++
++        if (std::ranges::find_if(b.tws, [&](const auto& tw) {
++              return break_candidate <= tw.end;
++            }) != b.tws.end() &&
++            (!check_max_load || b.is_valid_for_load(current_load))) {
++          // pickup -> delivery -> break is doable, choose pickup first.
++          oc.add_job_first = true;
++          return oc;
++        }
++      }
++    }
++
+     oc.add_break_first = true;
+     return oc;
+   }
