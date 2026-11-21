@@ -21,8 +21,12 @@ RUN echo "Cloning and installing vroom-express release/branch ${VROOM_EXPRESS_RE
 
 ARG VROOM_RELEASE=master
 
+# Patches locaux appliqués sur les sources VROOM (cf. patches/README.md)
+COPY patches /patches
+
 RUN echo "Cloning and installing vroom release/branch ${VROOM_RELEASE}..." && \
     git clone --branch $VROOM_RELEASE --single-branch --recurse-submodules https://github.com/VROOM-Project/vroom.git && \
+    for p in /patches/*.patch; do echo "Applying $p" && git -C /vroom apply --verbose "$p" || exit 1; done && \
     grep -q "MAX_PRIORITY" /vroom/src/structures/typedefs.h && \
     sed -i -E 's/(MAX_PRIORITY[[:space:]]*=[[:space:]]*)100/\110000/' /vroom/src/structures/typedefs.h && \
     grep "MAX_PRIORITY" /vroom/src/structures/typedefs.h && \
